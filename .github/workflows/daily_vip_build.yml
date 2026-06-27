@@ -89,17 +89,17 @@ jobs:
           TITLE="${PKG} ${VER} ${DTIME} Build"
 
           BODY=$(cat <<EOF
-## ${TITLE}
-
-| 项目 | 值 |
-|------|-----|
-| 包名 | ${PKG} |
-| 版本 | ${VER} (${VCODE}) |
-| SHA256 | \`${SHA}\` |
-| 大小 | $((SIZE / 1024 / 1024)) MB |
-| 构建时间 | ${TIME} |
-EOF
-)
+          ## ${TITLE}
+          
+          | 项目 | 值 |
+          |------|-----|
+          | 包名 | ${PKG} |
+          | 版本 | ${VER} (${VCODE}) |
+          | SHA256 | \`${SHA}\` |
+          | 大小 | $((SIZE / 1024 / 1024)) MB |
+          | 构建时间 | ${TIME} |
+          EOF
+          )
 
           gh release create "$TAG" \
             --title "$TITLE" \
