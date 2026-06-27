@@ -1,0 +1,8 @@
+tools/
+output/
+keystore/
+.keystore_pass
+config.json
+latest.apk
+__pycache__/
+*.pyc
