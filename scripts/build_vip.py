@@ -109,7 +109,11 @@ def sign_apk(java_bin, unsigned_path, version_info, output_apk_name):
         "--out", str(signed_dir),
     ]
     print(f"\n=== Signing ===")
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"[ERR] Signer stderr:\n{result.stderr}")
+        print(f"[ERR] Signer stdout:\n{result.stdout}")
+        sys.exit(1)
 
     candidates = list(signed_dir.glob("*.apk"))
     raw_path = candidates[0] if candidates else None
