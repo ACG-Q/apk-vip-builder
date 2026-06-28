@@ -2,7 +2,7 @@ tools/
 output/
 keystore/
 .keystore_pass
-config.json
 latest.apk
+apps/*/download.apk
 __pycache__/
 *.pyc

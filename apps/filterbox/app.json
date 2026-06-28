@@ -1,0 +1,7 @@
+{
+  "name": "FilterBox",
+  "package": "com.catchingnow.np",
+  "download_url": "https://filterbox.catchingnow.com/latest.apk",
+  "output_apk": "FilterBox_VIP_{version}.apk",
+  "schedule_cron": "0 0 * * *"
+}
