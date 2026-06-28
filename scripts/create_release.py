@@ -32,7 +32,7 @@ def main():
     sha = info["sha256"]
     size = info["size"]
     time = info["build_time"]
-    apk_name = info["apk_name"]
+    apk_path = Path(info["apk_path"])
 
     body = f"""## {title}
 
@@ -45,7 +45,6 @@ def main():
 | 构建时间 | {time} |
 """
 
-    apk_path = BASE_DIR / "output" / args.app / apk_name
     if not apk_path.exists():
         print(f"[ERR] APK not found: {apk_path}")
         sys.exit(1)
@@ -54,7 +53,7 @@ def main():
         "gh", "release", "create", tag,
         "--title", title,
         "--notes", body,
-        f"{apk_path}#{apk_name}",
+        f"{apk_path}#{apk_path.name}",
     ]
     print(f"Creating release: {tag}")
     result = subprocess.run(cmd, capture_output=True, text=True)
