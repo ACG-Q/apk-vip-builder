@@ -25,17 +25,17 @@ KEYSTORE_PASS_FILE = BASE_DIR / ".keystore_pass"
 
 
 def find_java():
-    java = shutil.which("java")
-    if java:
-        return java
+    for p in (TOOLS_DIR / "jre17").rglob("java*"):
+        if p.name in ("java", "java.exe") and os.access(p, os.X_OK):
+            return str(p)
     jre_path_file = TOOLS_DIR / "jre17" / ".jre_path"
     if jre_path_file.exists():
         java_path = jre_path_file.read_text().strip()
         if Path(java_path).exists():
             return java_path
-    for p in (TOOLS_DIR / "jre17").rglob("java*"):
-        if p.name in ("java", "java.exe") and os.access(p, os.X_OK):
-            return str(p)
+    java = shutil.which("java")
+    if java:
+        return java
     print("[ERR] No Java found. Run: python scripts/download_tools.py")
     sys.exit(1)
 
@@ -147,8 +147,9 @@ def main():
 
     java_bin = find_java()
 
+    no_res = app_config.get("no_res", False)
     patch_mod = load_patch_module(args.app)
-    patch_mod.patch(smali_dir, version_info, args.url)
+    patch_mod.patch(smali_dir, version_info, args.url, no_res=no_res)
 
     unsigned_path = output_dir / "unsigned.apk"
     rebuild_apk(java_bin, apktool_dir, unsigned_path)

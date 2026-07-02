@@ -334,7 +334,7 @@ def add_vip_settings(version_info, repo_url):
     return [f"  Settings patched: {settings_builder.relative_to(SMALI_DIR)}"]
 
 
-def patch(smali_dir: Path, version_info: dict, repo_url: str) -> list[str]:
+def patch(smali_dir: Path, version_info: dict, repo_url: str, **kwargs) -> list[str]:
     global SMALI_DIR
     SMALI_DIR = smali_dir
 

@@ -29,26 +29,29 @@ def ensure_tools():
 
 
 def find_java():
-    java = shutil.which("java")
-    if java:
-        return java
+    for p in (TOOLS_DIR / "jre17").rglob("java*"):
+        if p.name in ("java", "java.exe") and os.access(p, os.X_OK):
+            return str(p)
     jre_path_file = TOOLS_DIR / "jre17" / ".jre_path"
     if jre_path_file.exists():
         java_path = jre_path_file.read_text().strip()
         if Path(java_path).exists():
             return java_path
-    for p in (TOOLS_DIR / "jre17").rglob("java*"):
-        if p.name in ("java", "java.exe") and os.access(p, os.X_OK):
-            return str(p)
+    java = shutil.which("java")
+    if java:
+        return java
     print("[ERR] No Java found. Run: python scripts/download_tools.py")
     sys.exit(1)
 
 
-def run_apktool(java_bin, apk_path, out_dir):
+def run_apktool(java_bin, apk_path, out_dir, no_res=False):
     print(f"\n=== apktool decode ===")
     if out_dir.exists():
         shutil.rmtree(out_dir)
     cmd = [java_bin, "-jar", str(APKTOOL_JAR), "d", "-f", "-o", str(out_dir), str(apk_path)]
+    if no_res:
+        cmd.insert(5, "-r")
+        print("  (no-res mode: skipping resource decode)")
     print("  Running: java -jar apktool.jar d ...")
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
@@ -57,7 +60,7 @@ def run_apktool(java_bin, apk_path, out_dir):
     print(f"  OK -> {out_dir}")
 
 
-def extract_version(out_dir, version_out):
+def extract_version(out_dir, version_out, default_package="unknown"):
     info = {"version": "", "version_code": 0, "package": ""}
 
     yml_path = out_dir / "apktool.yml"
@@ -83,9 +86,9 @@ def extract_version(out_dir, version_out):
             m = re.search(r'package="([^"]+)"', text)
             if m:
                 info["package"] = m.group(1)
-        if not info.get("package"):
-            info["package"] = "unknown"
 
+    if not info.get("package"):
+        info["package"] = default_package
     version_out.parent.mkdir(parents=True, exist_ok=True)
     version_out.write_text(json.dumps(info, indent=2) + "\n")
     print(f"  Package: {info['package']}")
@@ -102,13 +105,21 @@ def main():
         print(f"[ERR] APK not found: {apk_path}")
         sys.exit(1)
 
+    app_json = BASE_DIR / "apps" / args.app / "app.json"
+    no_res = False
+    default_pkg = "unknown"
+    if app_json.exists():
+        config = json.loads(app_json.read_text(encoding="utf-8"))
+        no_res = config.get("no_res", False)
+        default_pkg = config.get("package", "unknown")
+
     apktool_out = BASE_DIR / "output" / args.app / "apktool"
     version_out = BASE_DIR / "output" / args.app / "version.json"
 
     ensure_tools()
     java_bin = find_java()
-    run_apktool(java_bin, apk_path, apktool_out)
-    extract_version(apktool_out, version_out)
+    run_apktool(java_bin, apk_path, apktool_out, no_res)
+    extract_version(apktool_out, version_out, default_pkg)
     total_files = sum(1 for _ in apktool_out.rglob("*"))
     smali_files = sum(1 for _ in apktool_out.rglob("*.smali"))
     print(f"\n  Total files: {total_files}, smali: {smali_files}")
