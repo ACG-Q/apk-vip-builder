@@ -28,6 +28,7 @@ def sha256(path):
 def main():
     parser = argparse.ArgumentParser(description="Download APK and detect changes")
     parser.add_argument("--app", required=True)
+    parser.add_argument("--url", default="", help="Override download_url from app.json")
     args = parser.parse_args()
 
     app_dir = BASE_DIR / "apps" / args.app
@@ -40,7 +41,7 @@ def main():
 
     state = json.loads(state_file.read_text()) if state_file.exists() else {}
 
-    apk_url = config.get("download_url", "")
+    apk_url = args.url or config.get("download_url", "")
     print(f"App: {config['name']}")
     if apk_url:
         print(f"URL: {apk_url}")

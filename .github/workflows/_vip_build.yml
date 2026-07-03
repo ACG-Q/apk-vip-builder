@@ -6,6 +6,10 @@ on:
       app_name:
         required: true
         type: string
+      apk_url:
+        required: false
+        type: string
+        default: ''
       repo_url:
         required: false
         type: string
@@ -53,7 +57,7 @@ jobs:
       - name: Identify APK
         id: identify
         run: |
-          python scripts/identify_apk.py --app ${{ inputs.app_name }} && echo "changed=true" >> $GITHUB_OUTPUT || echo "changed=false" >> $GITHUB_OUTPUT
+          python scripts/identify_apk.py --app ${{ inputs.app_name }} ${{ inputs.apk_url && format('--url "{0}"', inputs.apk_url) || '' }} && echo "changed=true" >> $GITHUB_OUTPUT || echo "changed=false" >> $GITHUB_OUTPUT
 
       - name: No update
         if: steps.identify.outputs.changed == 'false'
@@ -72,3 +76,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python scripts/create_release.py --app ${{ inputs.app_name }}
+
+      - name: Commit state.json
+        if: steps.identify.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/${{ inputs.app_name }}/state.json
+          git commit -m "chore: update ${{ inputs.app_name }} state.json" || echo "Nothing to commit"
+          git push
