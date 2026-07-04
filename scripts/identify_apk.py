@@ -1,6 +1,7 @@
 """
 identify_apk.py — 下载 APK，SHA256 变更检测
 用法: python scripts/identify_apk.py --app <app_name>
+支持豌豆荚等第三方市场的 URL 自动解析下载
 """
 
 import argparse
@@ -9,6 +10,8 @@ import json
 import sys
 import urllib.request
 from pathlib import Path
+
+from resolve_market import resolve_market_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -42,6 +45,8 @@ def main():
     state = json.loads(state_file.read_text()) if state_file.exists() else {}
 
     apk_url = args.url or config.get("download_url", "")
+    if apk_url:
+        apk_url = resolve_market_url(apk_url)
     print(f"App: {config['name']}")
     if apk_url:
         print(f"URL: {apk_url}")

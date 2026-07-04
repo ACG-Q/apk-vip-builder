@@ -1,0 +1,23 @@
+name: VIP NTFH (YitiaoTongzhi)
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: 'APK download URL (override app.json)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/_vip_build.yml
+    with:
+      app_name: ntfh
+      apk_url: ${{ github.event.inputs.apk_url || '' }}
+      repo_url: ${{ vars.REPO_URL || 'https://github.com/ACG-Q/apk-vip-builder' }}
+    secrets: inherit
