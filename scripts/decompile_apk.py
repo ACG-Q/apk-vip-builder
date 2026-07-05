@@ -29,29 +29,103 @@ def ensure_tools():
         sys.exit(1)
 
 
-def extract_xapk(apk_path):
-    """检测 XAPK 格式并提取主 APK。"""
+def extract_xapk(apk_path, java_bin, apktool_out):
+    """检测 XAPK 格式，反编译并合并所有 split APKs。
+
+    合并后的目录直接输出到 apktool_out 位置。
+    返回 True 表示已完成合并，False 表示普通 APK 需要正常反编译。
+    """
+    tmp_dir = apk_path.parent / "_xapk_tmp"
+
     with zipfile.ZipFile(apk_path) as z:
         names = z.namelist()
         if "manifest.json" not in names:
-            return  # 普通 APK
-        print("  XAPK detected, extracting main APK ...")
+            return False
+
+        print("  XAPK detected, extracting splits ...")
         main_apk = None
+        config_apks = []
         for entry in names:
-            if entry.endswith(".apk") and not entry.startswith("config."):
+            if not entry.endswith(".apk"):
+                continue
+            if entry.startswith("config."):
+                config_apks.append(entry)
+            else:
                 main_apk = entry
-                break
+
         if not main_apk:
             print("[ERR] No main APK found in XAPK")
             sys.exit(1)
-        print(f"  Main APK: {main_apk}")
-        tmp_path = apk_path.with_suffix(".tmp")
-        with z.open(main_apk) as src, open(tmp_path, "wb") as dst:
-            shutil.copyfileobj(src, dst)
-    # ZIP 已关闭，可以安全替换
-    tmp_path.replace(apk_path)
-    size = apk_path.stat().st_size
-    print(f"  Extracted: {size / 1024 / 1024:.1f} MB")
+
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir()
+        for apk in [main_apk] + config_apks:
+            with z.open(apk) as src, open(tmp_dir / Path(apk).name, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+    main_path = tmp_dir / Path(main_apk).name
+    config_paths = [tmp_dir / Path(c).name for c in config_apks]
+
+    # 用主 APK 替换 download.apk
+    shutil.move(str(main_path), str(apk_path))
+
+    if not config_paths:
+        shutil.rmtree(tmp_dir)
+        return False
+
+    print(f"  Config splits: {[p.name for p in config_paths]}")
+
+    # 反编译主 APK → 直接输出到 apktool_out
+    print(f"\n=== apktool decode (main) ===")
+    cmd = [java_bin, "-jar", str(APKTOOL_JAR), "d", "-f", "-o", str(apktool_out), str(apk_path)]
+    print("  Running: java -jar apktool.jar d ...")
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        print(f"[ERR] apktool failed:\n{proc.stderr.strip()}")
+        sys.exit(1)
+    print(f"  OK -> main")
+
+    # 反编译每个 config APK 并合并到 apktool_out
+    for cp in config_paths:
+        split_out = tmp_dir / cp.stem
+        print(f"\n=== apktool decode ({cp.stem}) ===")
+        cmd = [java_bin, "-jar", str(APKTOOL_JAR), "d", "-f", "-o", str(split_out), str(cp)]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            print(f"  [WARN] apktool failed for {cp.stem}, skipping")
+            continue
+        print(f"  OK -> {cp.stem}")
+
+        # 合并 lib（native libs）— 核心价值
+        split_lib = split_out / "lib"
+        main_lib = apktool_out / "lib"
+        if split_lib.exists():
+            if main_lib.exists():
+                shutil.rmtree(str(main_lib))
+            shutil.copytree(str(split_lib), str(main_lib))
+            print(f"  Merged lib/")
+
+        # 合并 assets（如果有）
+        split_assets = split_out / "assets"
+        main_assets = apktool_out / "assets"
+        if split_assets.exists():
+            if main_assets.exists():
+                for child in split_assets.iterdir():
+                    dest = main_assets / child.name
+                    if child.is_dir():
+                        if dest.exists():
+                            shutil.rmtree(str(dest))
+                        shutil.copytree(str(child), str(dest))
+                    else:
+                        shutil.copy2(str(child), str(dest))
+            else:
+                shutil.copytree(str(split_assets), str(main_assets))
+            print(f"  Merged assets/")
+
+    # 清理临时目录
+    shutil.rmtree(tmp_dir)
+    return True
 
 
 def find_java():
@@ -143,9 +217,10 @@ def main():
     version_out = BASE_DIR / "output" / args.app / "version.json"
 
     ensure_tools()
-    extract_xapk(apk_path)
     java_bin = find_java()
-    run_apktool(java_bin, apk_path, apktool_out, no_res)
+    merged = extract_xapk(apk_path, java_bin, apktool_out)
+    if not merged:
+        run_apktool(java_bin, apk_path, apktool_out, no_res)
     extract_version(apktool_out, version_out, default_pkg)
     total_files = sum(1 for _ in apktool_out.rglob("*"))
     smali_files = sum(1 for _ in apktool_out.rglob("*.smali"))
