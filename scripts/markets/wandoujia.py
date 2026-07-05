@@ -4,15 +4,21 @@ markets/wandoujia.py — 豌豆荚 URL 解析器
 支持:
   最新版本: wandoujia.com/apps/{id}              → /download/dot 302 Location
   历史版本: wandoujia.com/apps/{id}/history_v{code} → HTML data-href → 302 Location
+
+注意: GitHub Actions runner (海外 IP) 无法访问 wandoujia.com (国内服务)，
+      检测到 GITHUB_ACTIONS 环境变量时跳过解析，返回 None 让调用方 fallback。
 """
 
 import html as html_mod
+import os
 import re
 import urllib.request
 
 from resolve_market import register, follow_redirect
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+_IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 def _fetch_html(url):
@@ -24,6 +30,9 @@ def _fetch_html(url):
 @register(r"wandoujia\.com/apps/\d+/history_v", name="wandoujia")
 def resolve_wandoujia_history(url):
     """历史版本: HTML 中 data-href → 302 Location。"""
+    if _IN_CI:
+        print("  [resolve] wandoujia: skipped (GitHub Actions IP blocked)", flush=True)
+        return None
     html = _fetch_html(url)
     m = re.search(r'data-href="([^"]+)"', html)
     if not m:
@@ -37,6 +46,9 @@ def resolve_wandoujia_history(url):
 @register(r"wandoujia\.com/apps/\d+", name="wandoujia")
 def resolve_wandoujia_app(url):
     """最新版本: /download/dot → 302 Location。"""
+    if _IN_CI:
+        print("  [resolve] wandoujia: skipped (GitHub Actions IP blocked)", flush=True)
+        return None
     m = re.search(r"/apps/(\d+)", url)
     if not m:
         return None

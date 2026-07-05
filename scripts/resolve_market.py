@@ -66,7 +66,11 @@ def resolve_market_url(url):
     for pat, fn, name in _RESOLVERS:
         if pat.search(url):
             print(f"  [resolve] Market: {name}", flush=True)
-            result = fn(url)
+            try:
+                result = fn(url)
+            except Exception as e:
+                print(f"  [resolve] WARN: resolver failed ({e}), passing through", flush=True)
+                return url
             if result:
                 print(f"  [resolve] Resolved: {result[:100]}...", flush=True)
                 return result

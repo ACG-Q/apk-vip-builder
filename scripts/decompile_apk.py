@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,6 +27,31 @@ def ensure_tools():
     if not APKTOOL_JAR.exists():
         print(f"[ERR] apktool not found at {APKTOOL_JAR}")
         sys.exit(1)
+
+
+def extract_xapk(apk_path):
+    """检测 XAPK 格式并提取主 APK。"""
+    with zipfile.ZipFile(apk_path) as z:
+        names = z.namelist()
+        if "manifest.json" not in names:
+            return  # 普通 APK
+        print("  XAPK detected, extracting main APK ...")
+        main_apk = None
+        for entry in names:
+            if entry.endswith(".apk") and not entry.startswith("config."):
+                main_apk = entry
+                break
+        if not main_apk:
+            print("[ERR] No main APK found in XAPK")
+            sys.exit(1)
+        print(f"  Main APK: {main_apk}")
+        tmp_path = apk_path.with_suffix(".tmp")
+        with z.open(main_apk) as src, open(tmp_path, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+    # ZIP 已关闭，可以安全替换
+    tmp_path.replace(apk_path)
+    size = apk_path.stat().st_size
+    print(f"  Extracted: {size / 1024 / 1024:.1f} MB")
 
 
 def find_java():
@@ -117,6 +143,7 @@ def main():
     version_out = BASE_DIR / "output" / args.app / "version.json"
 
     ensure_tools()
+    extract_xapk(apk_path)
     java_bin = find_java()
     run_apktool(java_bin, apk_path, apktool_out, no_res)
     extract_version(apktool_out, version_out, default_pkg)
