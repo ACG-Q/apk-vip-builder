@@ -32,51 +32,7 @@ def _unpack(fmt, data, offset=0):
     return struct.unpack_from(fmt, data, offset)[0], offset + size
 
 
-def _parse_string_pool(data, offset):
-    """Parse AXML StringPool chunk, return list of strings and new offset."""
-    chunk_type, offset = _unpack('<H', data, offset)
-    assert chunk_type == CHUNK_STRING_POOL, f"Expected StringPool, got {chunk_type:x}"
-    header_size, offset = _unpack('<H', data, offset)
-    chunk_size, offset = _unpack('<I', data, offset)
-    string_count, offset = _unpack('<I', data, offset)
-    style_count, offset = _unpack('<I', data, offset)
-    flags, offset = _unpack('<I', data, offset)
-    strings_start, offset = _unpack('<I', data, offset)
-    styles_start, offset = _unpack('<I', data, offset)
-
-    is_utf8 = (flags & 0x100) != 0
-
-    # Read string offsets
-    string_offsets = []
-    for _ in range(string_count):
-        so, offset = _unpack('<I', data, offset)
-        string_offsets.append(so)
-
-    # Skip style offsets
-    offset = chunk_start + styles_start if styles_start else offset
-    offset = chunk_start + styles_start if styles_start else (chunk_start + chunk_size)
-
-    # Actually, let's be more precise
-    chunk_start_ = offset - 24 - (header_size - 24)  # This is getting messy
-    # Let me just compute chunk start
-    chunk_start = offset - 24 - (string_count * 4) - (header_size - 24)
-
-    # Actually, let me redo this properly
-    # Chunk layout:
-    #   header: 
-    #     chunk_type (2) + header_size (2) + chunk_size (4) = 8 bytes
-    #   then:
-    #     string_count (4) + style_count (4) + flags (4) + strings_start (4) + styles_start (4) = 20 bytes
-    #   then header_size - 28 bytes of padding
-    #   then: string_offsets (string_count * 4)
-    #   then: style_offsets (style_count * 4)  -- if styles_start != 0
-    #   then: string data
-
-    # Let me just re-parse with proper tracking
-    return _parse_string_pool_v2(data, offset - 24 - (string_count * 4) - (style_count * 4))
-
-
-def _parse_string_pool_v2(data, chunk_start, verbose=False):
+def _parse_string_pool(data, chunk_start, verbose=False):
     """Parse string pool starting from the chunk type field."""
     _, offset = _unpack('<H', data, chunk_start)  # chunk_type
     header_size, offset = _unpack('<H', data, offset)
@@ -197,47 +153,43 @@ def _parse_axml(data, verbose=False):
         if chunk_type == CHUNK_STRING_POOL:
             if verbose:
                 print(f"  [DBG] Chunk #{chunk_count}: STRING_POOL at 0x{offset:x}", flush=True)
-            strings, offset = _parse_string_pool_v2(data, offset, verbose=verbose)
+            strings, offset = _parse_string_pool(data, offset, verbose=verbose)
         elif chunk_type == CHUNK_RESOURCE_MAP:
             if verbose:
                 print(f"  [DBG] Chunk #{chunk_count}: RESOURCE_MAP at 0x{offset:x}", flush=True)
-            _, offset = _unpack('<H', data, offset)  # header_size
-            chunk_size, offset = _unpack('<I', data, offset)
-            offset = offset + chunk_size - 8
+            chunk_size, _ = _unpack('<I', data, offset + 4)
+            offset = offset + chunk_size
         elif chunk_type == CHUNK_START_TAG:
             if verbose:
                 print(f"  [DBG] Chunk #{chunk_count}: START_TAG at 0x{offset:x}", flush=True)
             _parse_start_tag(data, offset, strings, result, verbose=verbose)
-            _, hdr_size = _unpack('<H', data, offset + 2)
             chunk_size, _ = _unpack('<I', data, offset + 4)
             offset = offset + chunk_size
         elif chunk_type == CHUNK_END_TAG:
             if verbose:
                 print(f"  [DBG] Chunk #{chunk_count}: END_TAG at 0x{offset:x}", flush=True)
-            _, offset = _unpack('<H', data, offset + 2)  # header_size (skip)
-            _, offset = _unpack('<H', data, offset)  # chunk_type
-            hdr_size, offset = _unpack('<H', data, offset)
-            chunk_size, offset = _unpack('<I', data, offset)
-            offset = offset + chunk_size - 8
+            chunk_size, _ = _unpack('<I', data, offset + 4)
+            offset = offset + chunk_size
         elif chunk_type == CHUNK_TEXT:
             if verbose:
                 print(f"  [DBG] Chunk #{chunk_count}: TEXT at 0x{offset:x}", flush=True)
-            _, offset = _unpack('<H', data, offset)  # chunk_type
-            hdr_size, offset = _unpack('<H', data, offset)
-            chunk_size, offset = _unpack('<I', data, offset)
-            offset = offset + chunk_size - 8
+            chunk_size, _ = _unpack('<I', data, offset + 4)
+            offset = offset + chunk_size
         elif chunk_type in (CHUNK_START_NAMESPACE, CHUNK_END_NAMESPACE):
             if verbose:
                 ns_name = "START_NAMESPACE" if chunk_type == CHUNK_START_NAMESPACE else "END_NAMESPACE"
                 print(f"  [DBG] Chunk #{chunk_count}: {ns_name} at 0x{offset:x}", flush=True)
-            _, offset = _unpack('<H', data, offset)  # chunk_type
-            hdr_size, offset = _unpack('<H', data, offset)
-            chunk_size, offset = _unpack('<I', data, offset)
-            offset = offset + chunk_size - 8
+            chunk_size, _ = _unpack('<I', data, offset + 4)
+            offset = offset + chunk_size
         else:
             if verbose:
                 print(f"  [DBG] Chunk #{chunk_count}: UNKNOWN (0x{chunk_type:04x}) at 0x{offset:x}", flush=True)
             if offset + 8 > len(data):
+                break
+            try:
+                chunk_size, _ = _unpack('<I', data, offset + 4)
+                offset = offset + chunk_size
+            except:
                 break
             try:
                 _, offset = _unpack('<H', data, offset)  # chunk_type
