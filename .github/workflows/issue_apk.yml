@@ -35,7 +35,10 @@ jobs:
         id: process
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/process_issue_apk.py --issue ${{ github.event.issue.number }}
+        run: |
+          python scripts/process_issue_apk.py --issue ${{ github.event.issue.number }}
+          echo "=== ZIP listing ==="
+          unzip -l .tmp/issue_${{ github.event.issue.number }}.apk 2>/dev/null | head -60 || echo "unzip not available"
 
       - name: Comment on issue
         uses: actions/github-script@v7
