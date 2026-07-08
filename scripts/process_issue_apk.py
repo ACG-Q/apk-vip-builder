@@ -161,7 +161,7 @@ def main():
 
     # 4. Parse metadata
     print("Parsing APK metadata ...", flush=True)
-    info = parse_apk_metadata(str(apk_path))
+    info = parse_apk_metadata(str(apk_path), verbose=True)
     print(f"  Package: {info.get('package', '?')}", flush=True)
     print(f"  Version: {info.get('version_name', '?')} (code {info.get('version_code', '?')})", flush=True)
 
