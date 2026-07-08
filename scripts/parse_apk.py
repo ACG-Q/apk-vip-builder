@@ -229,6 +229,10 @@ def _parse_start_tag(data, offset, strings, result):
     ns_idx, offset = _unpack('<I', data, offset)
     name_idx, offset = _unpack('<I', data, offset)
 
+    # Handle header_size padding (same fix as axml.js)
+    if header_size > 24:
+        offset += (header_size - 24)
+
     # Element name (e.g., "manifest")
     elem_name = strings[name_idx] if name_idx >= 0 and name_idx < len(strings) else ''
 

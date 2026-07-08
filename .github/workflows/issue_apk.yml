@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   process:
-    if: contains(github.event.issue.labels.*.name, 'apk-auto')
+    if: startsWith(github.event.issue.title, '[APK]')
     runs-on: ubuntu-latest
     outputs:
       app: ${{ steps.process.outputs.app }}
@@ -20,6 +20,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Ensure apk-auto label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create apk-auto --color "0E8A16" --description "APK 自动处理" 2>/dev/null || true
+          gh issue edit ${{ github.event.issue.number }} --add-label apk-auto
 
       - name: Install deps
         run: pip install -r scripts/requirements.txt
