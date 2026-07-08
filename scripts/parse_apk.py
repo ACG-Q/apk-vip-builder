@@ -217,77 +217,66 @@ def _parse_axml(data, verbose=False):
     return result
 
 
+def _unpack_u16(data, offset):
+    return struct.unpack_from('<H', data, offset)[0]
+
+def _unpack_u32(data, offset):
+    return struct.unpack_from('<I', data, offset)[0]
+
 def _parse_start_tag(data, offset, strings, result, verbose=False):
-    """解析 StartTag chunk，提取 manifest 元素属性。"""
-    _, offset = _unpack('<H', data, offset)  # chunk_type
-    header_size, offset = _unpack('<H', data, offset)
-    chunk_size, offset = _unpack('<I', data, offset)
-    line_number, offset = _unpack('<I', data, offset)
-    comment_idx, offset = _unpack('<I', data, offset)
-
-    ns_idx, offset = _unpack('<I', data, offset)
-    name_idx, offset = _unpack('<I', data, offset)
-
-    # Handle header_size padding (same fix as axml.js)
-    if header_size > 24:
-        offset += (header_size - 24)
-
-    # Element name (e.g., "manifest")
-    elem_name = strings[name_idx] if name_idx >= 0 and name_idx < len(strings) else ''
+    """解析 StartTag chunk，提取 manifest 元素属性（与 axml.js 完全一致）。"""
+    if _unpack_u16(data, offset) != CHUNK_START_TAG:
+        return
+    name_idx = _unpack_u32(data, offset + 20)
+    name = strings[name_idx] if 0 <= name_idx < len(strings) else ''
 
     if verbose:
-        print(f"  [DBG]   element='{elem_name}' (name_idx={name_idx}, ns_idx={ns_idx})", flush=True)
-
-    # Not the manifest element, skip
-    if elem_name.lower() != 'manifest':
+        print(f"  [DBG]   element='{name}' (name_idx={name_idx})", flush=True)
+    if name.lower() != 'manifest':
         if verbose:
             print(f"  [DBG]   skipping non-manifest element", flush=True)
         return
 
-    flags, offset = _unpack('<H', data, offset)
-    attr_count, offset = _unpack('<H', data, offset)
-    class_attr, offset = _unpack('<I', data, offset)
+    hdr_size = _unpack_u16(data, offset + 2)
+    attr_start = _unpack_u16(data, offset + 24)
+    attr_size = _unpack_u16(data, offset + 26)
+    attr_cnt = _unpack_u16(data, offset + 28)
 
     if verbose:
-        print(f"  [DBG]   manifest attr_count={attr_count}", flush=True)
+        print(f"  [DBG]   manifest hdr_size={hdr_size} attr_start={attr_start} attr_size={attr_size} attr_cnt={attr_cnt}", flush=True)
 
-    for i in range(attr_count):
-        ns_idx_attr, offset = _unpack('<I', data, offset)
-        name_idx_attr, offset = _unpack('<I', data, offset)
-        raw_value_idx, offset = _unpack('<I', data, offset)
+    ap = offset + hdr_size + attr_start
+    for i in range(attr_cnt):
+        ans = _unpack_u32(data, ap)
+        an = strings[_unpack_u32(data, ap + 4)] if 0 <= _unpack_u32(data, ap + 4) < len(strings) else ''
+        rv = _unpack_u32(data, ap + 8)
+        v_size = _unpack_u16(data, ap + 12)
+        vt = data[ap + 15]
+        vd = _unpack_u32(data, ap + 16)
 
-        # Typed value
-        val_size, offset = _unpack('<H', data, offset)
-        val_res0, offset = _unpack('<B', data, offset)
-        val_type, offset = _unpack('<B', data, offset)
-        val_data, offset = _unpack('<I', data, offset)
-
-        attr_name = strings[name_idx_attr] if 0 <= name_idx_attr < len(strings) else f'?idx={name_idx_attr}'
-
-        if val_type == 0x03:
-            if 0 <= raw_value_idx < len(strings):
-                val = strings[raw_value_idx]
-            else:
-                val = ''
-        elif val_type == 0x10:
-            val = val_data
-        elif val_type == 0x11 or val_type == 0x01:
-            val = 'true' if val_data == -1 or val_data == 0xFFFFFFFF else 'false'
+        if vt == 0x03:
+            val = strings[rv] if 0 <= rv < len(strings) else ''
+        elif vt == 0x10:
+            val = vd
+        elif vt == 0x11 or vt == 0x01:
+            val = 'false' if vd in (0, 0xFFFFFFFF) else 'true'
         else:
-            val = str(val_data)
+            val = vd
 
         if verbose:
-            print(f"  [DBG]   attr[{i}]: {attr_name}={val!r} (type=0x{val_type:02x}, data=0x{val_data:x})", flush=True)
+            print(f"  [DBG]   attr[{i}]: nsIdx={ans} name={an!r} (type=0x{vt:02x}) val={val!r} (rv={rv} vd=0x{vd:x})", flush=True)
 
-        if attr_name == 'package':
+        if an == 'package':
             result['package'] = str(val)
-        elif attr_name == 'versionCode':
+        elif an == 'versionCode':
             try:
                 result['version_code'] = int(val)
             except (ValueError, TypeError):
                 result['version_code'] = 0
-        elif attr_name == 'versionName':
+        elif an == 'versionName':
             result['version_name'] = str(val)
+
+        ap += attr_size
 
 
 def find_app_dir(package_name):
