@@ -7,6 +7,8 @@ identify_apk.py — 下载 APK，SHA256 变更检测
 import argparse
 import hashlib
 import json
+import os
+import re
 import sys
 import urllib.request
 from pathlib import Path
@@ -15,6 +17,9 @@ from resolve_market import resolve_market_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+REPO = os.environ.get("GITHUB_REPOSITORY", "")
+TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
 
 def sha256(path):
@@ -28,11 +33,60 @@ def sha256(path):
     return h.hexdigest()
 
 
+def resolve_issue_url(url):
+    """解析 issue:N 格式为实际的附件下载 URL。"""
+    m = re.match(r"^issue:(\d+)$", url)
+    if not m:
+        return url
+    if not TOKEN:
+        print("[ERR] GITHUB_TOKEN required for issue:N resolution", flush=True)
+        return None
+
+    issue_num = m.group(1)
+    api_url = f"https://api.github.com/repos/{REPO}/issues/{issue_num}"
+    headers = {
+        "User-Agent": UA,
+        "Accept": "application/vnd.github.v3+json",
+        "Authorization": f"Bearer {TOKEN}",
+    }
+    req = urllib.request.Request(api_url, headers=headers)
+    with urllib.request.urlopen(req) as resp:
+        data = json.loads(resp.read().decode())
+
+    body = data.get("body", "")
+    m2 = re.search(r"https://github\.com/user-attachments/files/\d+/\S+", body)
+    if m2:
+        resolved = m2.group(0)
+        print(f"  [issue:{issue_num}] Resolved: {resolved[:80]}...", flush=True)
+        return resolved
+
+    # Also check comments
+    comments_url = f"https://api.github.com/repos/{REPO}/issues/{issue_num}/comments"
+    req2 = urllib.request.Request(comments_url, headers=headers)
+    with urllib.request.urlopen(req2) as resp:
+        comments = json.loads(resp.read().decode())
+    for comment in comments:
+        body_c = comment.get("body", "")
+        m2 = re.search(r"https://github\.com/user-attachments/files/\d+/\S+", body_c)
+        if m2:
+            resolved = m2.group(0)
+            print(f"  [issue:{issue_num}] Resolved from comment: {resolved[:80]}...", flush=True)
+            return resolved
+
+    print(f"[ERR] No attachment found in issue #{issue_num}", flush=True)
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Download APK and detect changes")
     parser.add_argument("--app", required=True)
     parser.add_argument("--url", default="", help="Override download_url from app.json")
+    parser.add_argument("--token", default="", help="GitHub token (for issue:N resolution)")
     args = parser.parse_args()
+
+    if args.token:
+        global TOKEN
+        TOKEN = args.token
 
     app_dir = BASE_DIR / "apps" / args.app
     app_json = app_dir / "app.json"
@@ -45,7 +99,9 @@ def main():
     state = json.loads(state_file.read_text()) if state_file.exists() else {}
 
     apk_url = args.url or config.get("download_url", "")
-    if apk_url:
+    if apk_url and apk_url.startswith("issue:"):
+        apk_url = resolve_issue_url(apk_url)
+    elif apk_url:
         apk_url = resolve_market_url(apk_url)
     print(f"App: {config['name']}")
     if apk_url:
@@ -92,6 +148,10 @@ def main():
     result = {"changed": changed, "hash": h, "size": size}
     print(json.dumps(result, indent=2))
     sys.exit(0 if changed else 1)
+
+
+if __name__ == "__main__":
+    main()
 
 
 if __name__ == "__main__":

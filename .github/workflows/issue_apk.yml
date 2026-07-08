@@ -1,0 +1,67 @@
+name: APK Issue Handler
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  process:
+    if: contains(github.event.issue.labels.*.name, 'apk-auto')
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.process.outputs.app }}
+      url: ${{ steps.process.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install -r scripts/requirements.txt
+
+      - name: Process APK from issue
+        id: process
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/process_issue_apk.py --issue ${{ github.event.issue.number }}
+
+      - name: Comment on issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const app = '${{ steps.process.outputs.app }}';
+            const url = '${{ steps.process.outputs.url }}';
+            const body = `✅ APK 已处理！\n\n匹配应用: ${app}\n下载链接: ${url}\n\n即将触发 VIP 构建。`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body,
+            });
+
+  trigger-build:
+    needs: process
+    if: needs.process.outputs.app != ''
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Trigger VIP build
+        run: |
+          gh workflow run vip_${{ needs.process.outputs.app }}.yml --ref main
+
+      - name: Close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.update({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+            });

@@ -69,11 +69,11 @@ def resolve_market_url(url):
             try:
                 result = fn(url)
             except Exception as e:
-                print(f"  [resolve] WARN: resolver failed ({e}), passing through", flush=True)
-                return url
+                print(f"  [resolve] WARN: resolver {name} failed ({e})", flush=True)
+                continue
             if result:
                 print(f"  [resolve] Resolved: {result[:100]}...", flush=True)
                 return result
-            print(f"  [resolve] WARN: resolver returned None, passing through", flush=True)
-            return url
+            print(f"  [resolve] WARN: resolver {name} returned None", flush=True)
+    # 所有解析器均失败，原样返回
     return url

@@ -120,6 +120,8 @@ def sign_apk(java_bin, unsigned_path, version_info, output_apk_name):
     signed_path = signed_dir / output_apk_name
     if raw_path:
         if raw_path != signed_path:
+            if signed_path.exists():
+                signed_path.unlink()
             raw_path.rename(signed_path)
     print(f"  OK -> {signed_path}")
     return signed_path
