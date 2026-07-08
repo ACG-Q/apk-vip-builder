@@ -53,12 +53,18 @@ def get_issue_body(issue_number):
 
 
 def extract_attachment_url(body):
-    """从 Issue body 中提取 GitHub Attachment URL。"""
-    # 优先匹配 ### APK 下载链接 下的 URL
+    """从 Issue body 中提取 GitHub Attachment URL。
+       新版格式: [filename.apk](https://github.com/user-attachments/...)
+       兼容旧版: ### APK 下载链接 ..."""
+    # 新版 markdown 链接
+    m = re.search(r'\[.*?\]\((https://github\.com/user-attachments/[^\s)]+)\)', body)
+    if m:
+        return m.group(1)
+    # 旧版 ### APK 下载链接
     m = re.search(r'### APK 下载链接\s*\n\s*(https://github\.com/user-attachments/files/\d+/\S+)', body)
     if m:
         return m.group(1)
-    # 通用匹配
+    # 兜底
     m = re.search(r'https://github\.com/user-attachments/files/\d+/\S+', body)
     if m:
         return m.group(0)
