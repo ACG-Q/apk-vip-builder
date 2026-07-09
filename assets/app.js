@@ -1,14 +1,47 @@
+/* ─── Theme ─── */
+function getTheme() {
+  return localStorage.getItem("apk-vip-builder-theme") || "system";
+}
+
+function setTheme(theme) {
+  localStorage.setItem("apk-vip-builder-theme", theme);
+  applyTheme(theme);
+}
+
+function applyTheme(theme) {
+  var html = document.documentElement;
+  var iconSystem = document.getElementById("theme-icon-system");
+  var iconLight = document.getElementById("theme-icon-light");
+  var iconDark = document.getElementById("theme-icon-dark");
+
+  if (theme === "system") {
+    html.removeAttribute("data-theme");
+  } else {
+    html.setAttribute("data-theme", theme);
+  }
+
+  iconSystem.classList.toggle("hidden", theme !== "system");
+  iconLight.classList.toggle("hidden", theme !== "light");
+  iconDark.classList.toggle("hidden", theme !== "dark");
+}
+
+function cycleTheme() {
+  var current = getTheme();
+  var next = current === "system" ? "light" : current === "light" ? "dark" : "system";
+  setTheme(next);
+}
+
 var CONFIG = {
   repo: "ACG-Q/apk-vip-builder",
 };
 
 var APP_STORES = [
-  { name: "豌豆荚", url: "https://www.wandoujia.com", icon: "📦" },
-  { name: "APKPure", url: "https://apkpure.net", icon: "🟣" },
-  { name: "Google Play", url: "https://play.google.com/store/apps", icon: "▶" },
-  { name: "酷安", url: "https://www.coolapk.com", icon: "📱" },
-  { name: "APKMirror", url: "https://www.apkmirror.com", icon: "🔍" },
-  { name: "F-Droid", url: "https://f-droid.org", icon: "🤖" },
+  { name: "豌豆荚", url: "https://www.wandoujia.com", domain: "wandoujia.com" },
+  { name: "APKPure", url: "https://apkpure.net", domain: "apkpure.net" },
+  { name: "Google Play", url: "https://play.google.com/store/apps", domain: "play.google.com" },
+  { name: "酷安", url: "https://www.coolapk.com", domain: "coolapk.com" },
+  { name: "APKMirror", url: "https://www.apkmirror.com", domain: "apkmirror.com" },
+  { name: "F-Droid", url: "https://f-droid.org", domain: "f-droid.org" },
 ];
 
 var KNOWN_APPS = {
@@ -23,7 +56,13 @@ var currentApkFile = null;
 var currentApkBuffer = null;
 
 document.addEventListener("DOMContentLoaded", function() {
+  applyTheme(getTheme());
   document.getElementById("version-badge").textContent = "v" + (AXML.VERSION || "?");
+  var footer = document.getElementById("footer");
+  if (footer) {
+    footer.innerHTML = 'APK VIP Builder · v' + (AXML.VERSION || "?") +
+      ' · <a href="https://github.com/ACG-Q/apk-vip-builder" target="_blank" rel="noopener">GitHub</a>';
+  }
   renderStoreLinks();
 });
 
@@ -105,7 +144,36 @@ async function parseApk(file) {
   }
 
   var entry = zip.file("AndroidManifest.xml");
-  if (!entry) throw new Error("AndroidManifest.xml not found");
+
+  // XAPK: AndroidManifest.xml 在嵌套的 .apk 文件内部
+  if (!entry) {
+    var apkFiles = Object.keys(zip.files).filter(function(n) { return n.endsWith(".apk"); });
+    for (var i = 0; i < apkFiles.length; i++) {
+      var apkData = await zip.file(apkFiles[i]).async("uint8array");
+      var apkZip = await JSZip.loadAsync(apkData);
+      entry = apkZip.file("AndroidManifest.xml");
+      if (entry) {
+        var apkRaw = await entry.async("uint8array");
+        var apkInfo = AXML.parse(apkRaw);
+        if (apkInfo.package) {
+          var apkLabel = apkInfo.label;
+          if (!apkLabel || apkLabel.startsWith("@")) {
+            try {
+              var ss = await apkZip.file("res/values/strings.xml")?.async("string");
+              var mm = ss?.match(/<string\s+name="app_name">([^<]+)<\/string>/);
+              if (mm) apkLabel = mm[1];
+            } catch (_) {}
+          }
+          apkInfo.label = apkLabel || apkInfo.package;
+          apkInfo.size = file.size;
+          apkInfo.app = KNOWN_APPS[apkInfo.package] || null;
+          return apkInfo;
+        }
+      }
+    }
+    throw new Error("AndroidManifest.xml not found");
+  }
+
   var raw = await entry.async("uint8array");
   var info = AXML.parse(raw);
   if (!info.package) throw new Error("无法解析包名");
@@ -143,8 +211,12 @@ function displayMetadata(info) {
 function renderStoreLinks() {
   var el = document.getElementById("store-links");
   el.innerHTML = APP_STORES.map(function(s) {
+    var faviconUrl = "https://icon.horse/icon/" + s.domain;
+    var initial = s.name.charAt(0);
     return '<a class="store-link" href="' + s.url + '" target="_blank" rel="noopener">' +
-      '<span class="store-icon">' + s.icon + '</span>' +
+      '<img src="' + faviconUrl + '" alt="' + s.name + '" width="24" height="24" loading="lazy" ' +
+      'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+      '<span class="store-fallback" style="display:none;width:24px;height:24px;border-radius:6px;background:var(--primary-subtle);color:var(--primary);align-items:center;justify-content:center;font-size:12px;font-weight:700">' + initial + '</span>' +
       '<span class="store-name">' + s.name + '</span>' +
       '</a>';
   }).join("");
@@ -204,8 +276,7 @@ function showResult(app) {
     '<p style="margin-top:12px;font-size:14px;color:var(--text-secondary)">已在新标签页打开 Issue 页面。</p>' +
     '<p style="margin-top:8px;font-size:14px;color:var(--text-secondary)">将已下载的 <strong>' + filename + '</strong> 拖入 Issue 编辑器，然后提交。</p>' +
     '<p style="margin:12px 0 8px"><button class="btn-primary" onclick="downloadApk()">重新下载 .apk.zip</button></p>' +
-    '<p style="margin-top:8px;font-size:13px;color:var(--text-muted)">提交后将在几分钟内自动触发构建。</p>' +
-    '<p><button class="btn-ghost" onclick="startOver()" style="margin-top:16px">上传其他 APK</button></p>';
+    '<p style="margin-top:8px;font-size:13px;color:var(--text-muted)">提交后将在几分钟内自动触发构建。</p>';
   downloadApk();
 }
 
@@ -225,6 +296,14 @@ function downloadApk() {
 }
 
 function startOver() {
+  currentApkInfo = null;
+  currentApkFile = null;
+  currentApkBuffer = null;
+  hideAll("upload-section");
+  document.getElementById("upload-section").classList.remove("hidden");
+}
+
+function goToUpload() {
   currentApkInfo = null;
   currentApkFile = null;
   currentApkBuffer = null;
