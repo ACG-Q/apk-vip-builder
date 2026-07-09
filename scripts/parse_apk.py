@@ -133,6 +133,29 @@ def parse_apk_metadata(apk_path, verbose=False):
                 manifest_data = z.read(name)
                 return _parse_axml(manifest_data, verbose=verbose)
 
+        # XAPK: AndroidManifest.xml 在嵌套的 .apk 文件内部
+        apk_files = [n for n in names if n.endswith('.apk')]
+        if apk_files:
+            if verbose:
+                print(f"  [DBG] Checking {len(apk_files)} nested APK files for AndroidManifest.xml", flush=True)
+            for apk_name in apk_files:
+                if verbose:
+                    print(f"  [DBG]   Opening nested APK: {apk_name}", flush=True)
+                try:
+                    apk_data = z.read(apk_name)
+                    with zipfile.ZipFile(BytesIO(apk_data)) as az:
+                        if 'AndroidManifest.xml' in az.namelist():
+                            if verbose:
+                                print(f"  [DBG]   Found AndroidManifest.xml in {apk_name}", flush=True)
+                            manifest_data = az.read('AndroidManifest.xml')
+                            result = _parse_axml(manifest_data, verbose=verbose)
+                            if result['package']:
+                                return result
+                except (zipfile.BadZipFile, Exception) as e:
+                    if verbose:
+                        print(f"  [DBG]   Failed to read {apk_name}: {e}", flush=True)
+                    continue
+
         if verbose:
             print("  [DBG] No manifest.json or AndroidManifest.xml found in ZIP", flush=True)
         return {'package': '', 'version_code': 0, 'version_name': '', 'label': ''}
