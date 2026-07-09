@@ -8,9 +8,11 @@ parse_apk.py — 解析 APK/XAPK 元数据（不依赖 Java/apktool）
   - label（应用名称）
 """
 
+import json
 import re
 import struct
 import zipfile
+from io import BytesIO
 from pathlib import Path
 
 # AXML chunk types
@@ -99,7 +101,7 @@ def _read_axml_string(data, offset, is_utf8):
 
 
 def parse_apk_metadata(apk_path, verbose=False):
-    """从 APK 解析元数据，返回 dict。"""
+    """从 APK/XAPK 解析元数据，返回 dict。"""
     with zipfile.ZipFile(apk_path) as z:
         names = z.namelist()
         if verbose:
@@ -108,14 +110,31 @@ def parse_apk_metadata(apk_path, verbose=False):
                 print(f"    {n}", flush=True)
             if len(names) > 10:
                 print(f"    ... and {len(names)-10} more", flush=True)
+
+        # XAPK: manifest.json
+        if 'manifest.json' in names:
+            if verbose:
+                print("  [DBG] Found manifest.json (XAPK format)", flush=True)
+            mf = json.loads(z.read('manifest.json'))
+            if verbose:
+                print(f"  [DBG] XAPK manifest: package={mf.get('package_name')}, version={mf.get('version_name')}", flush=True)
+            return {
+                'package': mf.get('package_name', ''),
+                'version_code': int(mf.get('version_code', 0)),
+                'version_name': mf.get('version_name', ''),
+                'label': mf.get('name', mf.get('package_name', '')),
+            }
+
+        # 标准 APK
         for name in names:
             if name == 'AndroidManifest.xml':
                 if verbose:
                     print(f"  [DBG] Found AndroidManifest.xml, size={z.getinfo(name).file_size}", flush=True)
                 manifest_data = z.read(name)
                 return _parse_axml(manifest_data, verbose=verbose)
+
         if verbose:
-            print("  [DBG] AndroidManifest.xml NOT FOUND in ZIP", flush=True)
+            print("  [DBG] No manifest.json or AndroidManifest.xml found in ZIP", flush=True)
         return {'package': '', 'version_code': 0, 'version_name': '', 'label': ''}
 
 
