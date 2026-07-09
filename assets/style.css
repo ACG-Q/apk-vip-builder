@@ -360,19 +360,21 @@ header .subtitle {
 /* ─── Store grid ─── */
 .store-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
 }
 .store-link {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 6px;
+  padding: 16px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   text-decoration: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: 12px;
+  text-align: center;
   transition: background var(--transition), border-color var(--transition);
 }
 .store-link:hover {
@@ -380,7 +382,7 @@ header .subtitle {
   border-color: var(--primary);
   color: var(--primary);
 }
-.store-icon { font-size: 16px; flex-shrink: 0; }
+.store-icon { font-size: 24px; }
 .store-name { font-weight: 500; }
 
 /* ─── Reduced motion ─── */

@@ -3,12 +3,12 @@ var CONFIG = {
 };
 
 var APP_STORES = [
-  { name: "豌豆荚", url: "https://www.wandoujia.com/apps/{pkg}", icon: "📦" },
-  { name: "APKPure", url: "https://apkpure.net/search?q={pkg}", icon: "🟣" },
-  { name: "Google Play", url: "https://play.google.com/store/apps/details?id={pkg}", icon: "▶" },
-  { name: "酷安", url: "https://www.coolapk.com/apk/{pkg}", icon: "📱" },
-  { name: "APKMirror", url: "https://www.apkmirror.com/?s={pkg}", icon: "🔍" },
-  { name: "F-Droid", url: "https://f-droid.org/packages/{pkg}/", icon: "🤖" },
+  { name: "豌豆荚", url: "https://www.wandoujia.com", icon: "📦" },
+  { name: "APKPure", url: "https://apkpure.net", icon: "🟣" },
+  { name: "Google Play", url: "https://play.google.com/store/apps", icon: "▶" },
+  { name: "酷安", url: "https://www.coolapk.com", icon: "📱" },
+  { name: "APKMirror", url: "https://www.apkmirror.com", icon: "🔍" },
+  { name: "F-Droid", url: "https://f-droid.org", icon: "🤖" },
 ];
 
 var KNOWN_APPS = {
@@ -24,7 +24,7 @@ var currentApkBuffer = null;
 
 document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("version-badge").textContent = "v" + (AXML.VERSION || "?");
-  renderStoreLinks(null);
+  renderStoreLinks();
 });
 
 function showUpload() {
@@ -119,21 +119,15 @@ function displayMetadata(info) {
   } else {
     appEl.innerHTML = '<span class="meta-badge unsupported">未知</span>';
   }
-  renderStoreLinks(info.package);
   var btn = document.getElementById("submit-btn");
   btn.disabled = !info.app;
   btn.textContent = info.app ? "创建构建请求 (" + info.app + ")" : "不支持的应用";
 }
 
-function renderStoreLinks(pkg) {
+function renderStoreLinks() {
   var el = document.getElementById("store-links");
-  if (!pkg) {
-    el.innerHTML = '<p class="hint" style="grid-column:1/-1">上传 APK 后可用</p>';
-    return;
-  }
   el.innerHTML = APP_STORES.map(function(s) {
-    var href = s.url.replace("{pkg}", encodeURIComponent(pkg));
-    return '<a class="store-link" href="' + href + '" target="_blank" rel="noopener">' +
+    return '<a class="store-link" href="' + s.url + '" target="_blank" rel="noopener">' +
       '<span class="store-icon">' + s.icon + '</span>' +
       '<span class="store-name">' + s.name + '</span>' +
       '</a>';
