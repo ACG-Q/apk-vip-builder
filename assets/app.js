@@ -88,6 +88,22 @@ async function parseApk(file) {
   var buf = await file.arrayBuffer();
   currentApkBuffer = buf;
   var zip = await JSZip.loadAsync(buf);
+
+  var mfEntry = zip.file("manifest.json");
+  if (mfEntry) {
+    var mf = JSON.parse(await mfEntry.async("string"));
+    var info = {
+      package: mf.package_name || "",
+      versionCode: parseInt(mf.version_code) || 0,
+      versionName: mf.version_name || "",
+      label: mf.name || mf.package_name || "",
+      size: file.size,
+      app: KNOWN_APPS[mf.package_name] || null,
+    };
+    if (!info.package) throw new Error("无法解析包名");
+    return info;
+  }
+
   var entry = zip.file("AndroidManifest.xml");
   if (!entry) throw new Error("AndroidManifest.xml not found");
   var raw = await entry.async("uint8array");
