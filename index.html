@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APK VIP Builder</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>APK VIP Builder</h1>
+    <p class="subtitle">上传 APK，自动触发 VIP 构建 <span id="version-badge" class="version-badge"></span></p>
+  </header>
+
+  <main>
+    <section id="upload-section" class="card">
+      <h2>上传 APK</h2>
+      <div id="drop-zone" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p>拖拽 APK 或 XAPK 文件到此处</p>
+        <p class="hint">或 <span class="link" onclick="document.getElementById('file-input').click()">点击选择文件</span></p>
+        <input type="file" id="file-input" accept=".apk,.xapk" hidden onchange="handleFile(this.files[0])">
+      </div>
+      <div id="upload-progress" class="hidden">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <p id="progress-text">解析中...</p>
+      </div>
+    </section>
+
+    <section id="metadata-section" class="card hidden">
+      <h2>APK 信息</h2>
+      <div id="metadata">
+        <div class="meta-row"><span class="meta-label">包名</span><span id="meta-package" class="meta-value code"></span></div>
+        <div class="meta-row"><span class="meta-label">版本名</span><span id="meta-version-name" class="meta-value code"></span></div>
+        <div class="meta-row"><span class="meta-label">版本号</span><span id="meta-version-code" class="meta-value code"></span></div>
+        <div class="meta-row"><span class="meta-label">应用名称</span><span id="meta-label" class="meta-value"></span></div>
+        <div class="meta-row"><span class="meta-label">文件大小</span><span id="meta-size" class="meta-value"></span></div>
+        <div class="meta-row"><span class="meta-label">匹配应用</span><span id="meta-app" class="meta-value"></span></div>
+      </div>
+      <button id="submit-btn" class="btn-primary" onclick="createIssue()" disabled>创建构建请求</button>
+    </section>
+
+    <section id="result-section" class="card hidden">
+      <div class="result-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="16 10 11 15 8 12"/></svg>
+      </div>
+      <h2 id="result-title">Issue 页面已打开</h2>
+      <div id="result-body"></div>
+    </section>
+
+    <section id="stores-section" class="card">
+      <h2>应用商店 <span class="hint" style="font-weight:400">点击直达该应用页面</span></h2>
+      <div id="store-links" class="store-grid"></div>
+    </section>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="assets/axml.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
